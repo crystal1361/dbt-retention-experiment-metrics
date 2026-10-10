@@ -1,0 +1,52 @@
+semantic_models:
+  - name: transactions
+    description: Posted transactions. Measures count customer-initiated activity only.
+    model: ref('fct_transactions')
+    defaults:
+      agg_time_dimension: transaction_date
+    entities:
+      - name: transaction
+        type: primary
+        expr: transaction_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: transaction_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: channel
+        type: categorical
+      - name: direction
+        type: categorical
+      - name: account_type
+        type: categorical
+    measures:
+      - name: customer_transactions
+        agg: sum
+        expr: "case when is_customer_initiated then 1 else 0 end"
+      - name: transacting_customers
+        description: Distinct customers with a customer-initiated transaction.
+        agg: count_distinct
+        expr: "case when is_customer_initiated then customer_id end"
+
+metrics:
+  - name: transaction_count
+    label: Customer-initiated transactions
+    type: simple
+    type_params:
+      measure: customer_transactions
+
+  - name: transacting_customers_rolling_90d
+    label: Transacting customers (rolling 90 days)
+    description: >
+      Distinct customers with any customer-initiated transaction in the
+      trailing 90 days -- the recency half of the "active" definition, as a
+      cumulative metric. Count-distinct must be recomputed over the window,
+      not summed from daily counts.
+    type: cumulative
+    type_params:
+      measure: transacting_customers
+      cumulative_type_params:
+        window: 90 days

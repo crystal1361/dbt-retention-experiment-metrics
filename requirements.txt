@@ -1,0 +1,5 @@
+# Python 3.12 recommended (3.13 cannot currently build a MetricFlow CLI dependency).
+dbt-core==1.12.5
+dbt-duckdb==1.11.0
+dbt-metricflow[duckdb]==0.15.0
+numpy>=1.26

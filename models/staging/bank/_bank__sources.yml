@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: bank
+    description: >
+      Raw extracts from Northwind Bank's core banking and marketing systems
+      (synthetic; produced by `scripts/generate_data.py`). DuckDB reads them
+      directly from CSV, standing in for a raw schema in a cloud warehouse.
+    meta:
+      external_location: "read_csv('data/raw/{name}.csv', header = true, auto_detect = true)"
+    tables:
+      - name: customers
+        description: One row per customer at onboarding.
+      - name: accounts
+        description: One row per deposit account (checking or savings).
+      - name: transactions
+        description: >
+          Posted transactions. Includes system postings (monthly fees, interest)
+          that are NOT evidence of customer engagement.
+      - name: experiment_assignments
+        description: Randomized assignment of eligible customers to experiment variants.
+      - name: offer_events
+        description: Marketing events for the retention offer (exposure, acceptance).

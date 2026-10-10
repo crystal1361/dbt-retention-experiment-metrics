@@ -1,0 +1,38 @@
+name: dbt CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate synthetic raw data
+        run: python scripts/generate_data.py
+
+      - name: dbt build (models, data tests, unit tests)
+        run: dbt build
+
+      - name: Validate semantic layer against the warehouse
+        run: mf validate-configs
+
+      - name: Query metrics
+        run: |
+          mf query --metrics retention_rate_d90,experiment_units --group-by experiment_unit__variant
+          mf query --metrics retention_lift_d90_pp
+          mf query --metrics offer_acceptance_rate_14d
+
+      - name: Experiment readout
+        run: python scripts/run_analysis.py experiment_readout

@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: int_customer_month_spine
+    description: >
+      Customer x month spine from signup month to the end of the analysis
+      window. Needed so that months with zero activity exist as rows.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [customer_id, month_start]
+
+  - name: int_customer_monthly_activity
+    description: Customer-initiated activity aggregated to customer x month (system postings excluded).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [customer_id, activity_month]
+    columns:
+      - name: customer_txn_count
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 1
+
+  - name: int_customer_monthly_status
+    description: '{{ doc("churn_definition") }}'
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [customer_id, month_start]
+    columns:
+      - name: days_since_last_txn
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 0
+
+unit_tests:
+  - name: dormancy_boundary_89_vs_90_days
+    description: >
+      Last activity on Jan 31 -> Apr 30 is day 89 (still active), May 31 is
+      day 120 (churned in May). Last activity on Jan 30 -> Apr 30 is day 90,
+      so that customer is churned in April. Pins the off-by-one in the
+      churn definition.
+    model: int_customer_monthly_status
+    overrides:
+      vars:
+        dormancy_days: 90
+    given:
+      - input: ref('int_customer_month_spine')
+        rows:
+          - {customer_id: day89, month_start: 2025-01-01, month_end: 2025-01-31, has_open_checking: true}
+          - {customer_id: day89, month_start: 2025-02-01, month_end: 2025-02-28, has_open_checking: true}
+          - {customer_id: day89, month_start: 2025-03-01, month_end: 2025-03-31, has_open_checking: true}
+          - {customer_id: day89, month_start: 2025-04-01, month_end: 2025-04-30, has_open_checking: true}
+          - {customer_id: day89, month_start: 2025-05-01, month_end: 2025-05-31, has_open_checking: true}
+          - {customer_id: day90, month_start: 2025-01-01, month_end: 2025-01-31, has_open_checking: true}
+          - {customer_id: day90, month_start: 2025-02-01, month_end: 2025-02-28, has_open_checking: true}
+          - {customer_id: day90, month_start: 2025-03-01, month_end: 2025-03-31, has_open_checking: true}
+          - {customer_id: day90, month_start: 2025-04-01, month_end: 2025-04-30, has_open_checking: true}
+          - {customer_id: day90, month_start: 2025-05-01, month_end: 2025-05-31, has_open_checking: true}
+      - input: ref('int_customer_monthly_activity')
+        rows:
+          - {customer_id: day89, activity_month: 2025-01-01, customer_txn_count: 3, last_txn_date_in_month: 2025-01-31}
+          - {customer_id: day90, activity_month: 2025-01-01, customer_txn_count: 3, last_txn_date_in_month: 2025-01-30}
+    expect:
+      rows:
+        - {customer_id: day89, month_start: 2025-01-01, is_active: true,  is_churned_in_month: false}
+        - {customer_id: day89, month_start: 2025-02-01, is_active: true,  is_churned_in_month: false}
+        - {customer_id: day89, month_start: 2025-03-01, is_active: true,  is_churned_in_month: false}
+        - {customer_id: day89, month_start: 2025-04-01, is_active: true,  is_churned_in_month: false}
+        - {customer_id: day89, month_start: 2025-05-01, is_active: false, is_churned_in_month: true}
+        - {customer_id: day90, month_start: 2025-01-01, is_active: true,  is_churned_in_month: false}
+        - {customer_id: day90, month_start: 2025-02-01, is_active: true,  is_churned_in_month: false}
+        - {customer_id: day90, month_start: 2025-03-01, is_active: true,  is_churned_in_month: false}
+        - {customer_id: day90, month_start: 2025-04-01, is_active: false, is_churned_in_month: true}
+        - {customer_id: day90, month_start: 2025-05-01, is_active: false, is_churned_in_month: false}
+
+  - name: closed_account_is_never_active
+    description: >
+      A customer who keeps transacting after closing checking (e.g. a late
+      card refund) is not active. Account status wins over recency.
+    model: int_customer_monthly_status
+    given:
+      - input: ref('int_customer_month_spine')
+        rows:
+          - {customer_id: closer, month_start: 2025-01-01, month_end: 2025-01-31, has_open_checking: true}
+          - {customer_id: closer, month_start: 2025-02-01, month_end: 2025-02-28, has_open_checking: false}
+      - input: ref('int_customer_monthly_activity')
+        rows:
+          - {customer_id: closer, activity_month: 2025-01-01, customer_txn_count: 5, last_txn_date_in_month: 2025-01-20}
+          - {customer_id: closer, activity_month: 2025-02-01, customer_txn_count: 1, last_txn_date_in_month: 2025-02-10}
+    expect:
+      rows:
+        - {customer_id: closer, month_start: 2025-01-01, is_active: true,  is_churned_in_month: false}
+        - {customer_id: closer, month_start: 2025-02-01, is_active: false, is_churned_in_month: true}

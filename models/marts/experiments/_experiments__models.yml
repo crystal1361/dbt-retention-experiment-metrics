@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: fct_experiment_outcomes
+    description: '{{ doc("experiment_outcome_definition") }}'
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: experiment_unit_id
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique]
+      - name: experiment_id
+        data_type: varchar
+        constraints: [{type: not_null}]
+      - name: customer_id
+        data_type: varchar
+        constraints: [{type: not_null}]
+      - name: variant
+        data_type: varchar
+        constraints: [{type: not_null}]
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [control, treatment]
+      - name: assigned_date
+        data_type: date
+        constraints: [{type: not_null}]
+      - name: segment
+        data_type: varchar
+      - name: acquisition_channel
+        data_type: varchar
+      - name: is_exposed
+        data_type: boolean
+        description: Saw the offer at least once. Always false for control (see contamination test).
+      - name: is_accepted
+        data_type: boolean
+      - name: first_exposed_date
+        data_type: date
+      - name: first_accepted_date
+        data_type: date
+      - name: pre_period_txn_count
+        data_type: integer
+        description: Customer-initiated transactions in the 90 days before assignment (CUPED covariate).
+      - name: post_period_txn_count
+        data_type: integer
+      - name: is_retained_d90
+        data_type: boolean
+        description: Primary outcome. Any customer-initiated transaction in days (60, 90] after assignment.
+
+  - name: fct_offer_events
+    description: Offer exposure and acceptance events, with the customer's assigned variant.
+    columns:
+      - name: offer_event_id
+        data_tests: [unique, not_null]
+      - name: variant
+        description: Null would mean an event for an unassigned customer.
+        data_tests: [not_null]
+
+  - name: fct_offer_exposures
+    description: >
+      Offer exposures only. Split from acceptances so the conversion metric's
+      base and conversion events come from different semantic models.
+    columns:
+      - name: offer_event_id
+        data_tests: [unique, not_null]
+
+  - name: fct_offer_acceptances
+    description: Offer acceptances only.
+    columns:
+      - name: offer_event_id
+        data_tests: [unique, not_null]

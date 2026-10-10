@@ -1,0 +1,68 @@
+semantic_models:
+  - name: customer_monthly
+    description: Customer x month retention status (grain of fct_customer_monthly).
+    model: ref('fct_customer_monthly')
+    defaults:
+      agg_time_dimension: month_start
+    entities:
+      - name: customer_month
+        type: primary
+        expr: customer_month_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: month_start
+        type: time
+        type_params:
+          time_granularity: month
+      - name: has_direct_deposit
+        type: categorical
+    measures:
+      - name: customers_active
+        description: Customers active at month end.
+        agg: sum
+        expr: "case when is_active then 1 else 0 end"
+      - name: customers_active_at_start
+        description: Customers active at the end of the prior month (churn denominator).
+        agg: sum
+        expr: "case when is_active_at_start then 1 else 0 end"
+      - name: customers_churned
+        description: Customers active at start of month and dormant/closed by month end.
+        agg: sum
+        expr: "case when is_churned_in_month then 1 else 0 end"
+      - name: customer_deposit_amount
+        agg: sum
+        expr: deposit_amount
+
+metrics:
+  - name: active_customers
+    label: Active customers
+    description: Customers with an open checking account and a customer-initiated transaction in the trailing 90 days.
+    type: simple
+    type_params:
+      measure: customers_active
+
+  - name: churned_customers
+    label: Churned customers
+    type: simple
+    type_params:
+      measure: customers_churned
+
+  - name: active_customers_at_start
+    label: Active customers at start of month
+    type: simple
+    type_params:
+      measure: customers_active_at_start
+
+  - name: monthly_churn_rate
+    label: Monthly churn rate
+    description: >
+      Churned in month / active at start of month, computed as a ratio of
+      sums so segment cuts are weighted correctly (never an average of
+      segment rates). Queried at quarter or year grain it returns the
+      customer-month-weighted average MONTHLY churn rate, not quarterly churn.
+    type: ratio
+    type_params:
+      numerator: churned_customers
+      denominator: active_customers_at_start

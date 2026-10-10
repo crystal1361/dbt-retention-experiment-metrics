@@ -1,0 +1,155 @@
+semantic_models:
+  - name: experiment_units
+    description: One row per customer assigned to an experiment (randomization unit).
+    model: ref('fct_experiment_outcomes')
+    defaults:
+      agg_time_dimension: assigned_date
+    entities:
+      - name: experiment_unit
+        type: primary
+        expr: experiment_unit_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: assigned_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: experiment_id
+        type: categorical
+      - name: variant
+        type: categorical
+    measures:
+      - name: assigned_units
+        agg: count
+        expr: experiment_unit_id
+      - name: retained_units_d90
+        agg: sum
+        expr: "case when is_retained_d90 then 1 else 0 end"
+      - name: exposed_units
+        agg: sum
+        expr: "case when is_exposed then 1 else 0 end"
+
+  - name: offer_exposures
+    description: Offer exposures (base events of the acceptance funnel).
+    model: ref('fct_offer_exposures')
+    defaults:
+      agg_time_dimension: exposed_date
+    entities:
+      - name: offer_exposure
+        type: primary
+        expr: offer_event_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: exposed_date
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: offer_exposures
+        agg: count
+        expr: offer_event_id
+
+  - name: offer_acceptances
+    description: Offer acceptances (conversion events of the acceptance funnel).
+    model: ref('fct_offer_acceptances')
+    defaults:
+      agg_time_dimension: accepted_date
+    entities:
+      - name: offer_acceptance
+        type: primary
+        expr: offer_event_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: accepted_date
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: offer_acceptances
+        agg: count
+        expr: offer_event_id
+
+metrics:
+  # ---- primary experiment metric ------------------------------------------
+  - name: experiment_units
+    label: Assigned customers
+    type: simple
+    type_params:
+      measure: assigned_units
+
+  - name: retained_customers_d90
+    label: Retained customers (day 60-90 activity)
+    type: simple
+    type_params:
+      measure: retained_units_d90
+
+  - name: retention_rate_d90
+    label: 90-day retention rate
+    description: >
+      Share of assigned customers with a customer-initiated transaction in
+      days (60, 90] after assignment. Intent-to-treat: every assigned
+      customer counts, exposed or not. Group by experiment_unit__variant.
+    type: ratio
+    type_params:
+      numerator: retained_customers_d90
+      denominator: experiment_units
+
+  # ---- arm-level metrics feeding the lift ---------------------------------
+  - name: retention_rate_d90_treatment
+    label: 90-day retention rate (treatment)
+    type: ratio
+    type_params:
+      numerator: retained_customers_d90
+      denominator: experiment_units
+    filter: |
+      {{ Dimension('experiment_unit__variant') }} = 'treatment'
+
+  - name: retention_rate_d90_control
+    label: 90-day retention rate (control)
+    type: ratio
+    type_params:
+      numerator: retained_customers_d90
+      denominator: experiment_units
+    filter: |
+      {{ Dimension('experiment_unit__variant') }} = 'control'
+
+  - name: retention_lift_d90_pp
+    label: 90-day retention lift (pp, ITT)
+    description: >
+      Treatment minus control 90-day retention, in percentage points.
+      Point estimate only -- the confidence interval and CUPED-adjusted
+      estimate are in analyses/experiment_readout.sql.
+    type: derived
+    type_params:
+      expr: (treatment - control) * 100
+      metrics:
+        - name: retention_rate_d90_treatment
+          alias: treatment
+        - name: retention_rate_d90_control
+          alias: control
+
+  # ---- funnel ---------------------------------------------------------------
+  - name: offer_acceptance_rate_14d
+    label: Offer acceptance rate (14-day window)
+    description: >
+      Of offer exposures, the share followed by an acceptance from the same
+      customer less than 14 days later (days 0-13; MetricFlow windows are
+      strict). Verified by hand against fct_experiment_outcomes: 199/872. A conversion metric: MetricFlow matches each
+      acceptance to a prior exposure for the same customer inside the window,
+      so late acceptances are excluded rather than inflating the rate.
+    type: conversion
+    type_params:
+      conversion_type_params:
+        entity: customer
+        calculation: conversion_rate
+        base_measure:
+          name: offer_exposures
+        conversion_measure:
+          name: offer_acceptances
+        window: 14 days

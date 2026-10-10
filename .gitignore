@@ -1,0 +1,15 @@
+# dbt
+target/
+dbt_packages/
+logs/
+.user.yml
+
+# local warehouse + generated raw data (reproducible via `make data`)
+*.duckdb
+*.duckdb.wal
+data/raw/*.csv
+
+# python
+.venv/
+__pycache__/
+*.pyc

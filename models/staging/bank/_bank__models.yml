@@ -1,0 +1,91 @@
+version: 2
+
+models:
+  - name: stg_bank__customers
+    description: Customers, one row each, with typed columns.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: segment
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mass_market, affluent, small_business]
+      - name: acquisition_channel
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [branch, digital, referral]
+
+  - name: stg_bank__accounts
+    description: Deposit accounts, one row each.
+    columns:
+      - name: account_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_bank__customers')
+                field: customer_id
+      - name: account_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [checking, savings]
+      - name: closed_date
+        description: Null while the account is open.
+
+  - name: stg_bank__transactions
+    description: Posted transactions, one row each.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_bank__accounts')
+                field: account_id
+      - name: direction
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [debit, credit]
+      - name: is_customer_initiated
+        description: >
+          False for bank-originated postings (fees, interest). Only
+          customer-initiated transactions count toward activity and churn.
+
+  - name: stg_bank__experiment_assignments
+    description: One row per (experiment, customer) assignment.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [experiment_id, customer_id]
+    columns:
+      - name: variant
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [control, treatment]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_bank__customers')
+                field: customer_id
+
+  - name: stg_bank__offer_events
+    description: Retention-offer marketing events.
+    columns:
+      - name: offer_event_id
+        data_tests: [unique, not_null]
+      - name: event_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [offer_exposed, offer_accepted]

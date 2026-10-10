@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: dim_customers
+    description: One row per customer with onboarding attributes and current status.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: is_currently_active
+        description: Active as of the last month in the analysis window.
+
+  - name: fct_customer_monthly
+    description: >
+      Customer x month retention fact. Starts after a 90-day warm-up so that
+      dormancy can be evaluated for every customer. See
+      `int_customer_monthly_status` for the churn definition.
+    columns:
+      - name: customer_month_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: is_active_at_start
+        description: Active at the end of the prior month (denominator for churn rate).
+      - name: is_churned_in_month
+        description: Active at start of month, dormant or closed by month end.
+
+  - name: fct_transactions
+    description: All posted transactions with the owning customer attached.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests: [not_null]

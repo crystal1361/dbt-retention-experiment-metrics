@@ -1,0 +1,8 @@
+# Local DuckDB warehouse -- no credentials, no cloud account needed.
+retention_metrics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: northwind.duckdb
+      threads: 4

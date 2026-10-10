@@ -1,0 +1,34 @@
+semantic_models:
+  - name: customers
+    description: Customer dimension. Lets every other semantic model slice by segment, region, channel.
+    model: ref('dim_customers')
+    defaults:
+      agg_time_dimension: signup_date
+    entities:
+      - name: customer
+        type: primary
+        expr: customer_id
+    dimensions:
+      - name: signup_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: segment
+        type: categorical
+      - name: region
+        type: categorical
+      - name: age_band
+        type: categorical
+      - name: acquisition_channel
+        type: categorical
+    measures:
+      - name: customer_signups
+        agg: count
+        expr: customer_id
+
+metrics:
+  - name: new_customers
+    label: New customers
+    type: simple
+    type_params:
+      measure: customer_signups

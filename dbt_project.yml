@@ -1,0 +1,35 @@
+name: retention_metrics
+version: "1.0.0"
+config-version: 2
+profile: retention_metrics
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # A customer is "active" if they made a customer-initiated transaction in the
+  # trailing `dormancy_days` days; otherwise they are dormant (churned).
+  dormancy_days: 90
+  analysis_start_date: "2024-01-01"
+  analysis_end_date: "2025-12-31"
+  # Experiment outcome window: retained = any customer-initiated transaction
+  # in (assigned_at + 60, assigned_at + 90] days.
+  retention_window_start_day: 60
+  retention_window_end_day: 90
+
+models:
+  retention_metrics:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+    utilities:
+      +materialized: table
